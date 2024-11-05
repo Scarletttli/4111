@@ -1,0 +1,57 @@
+import unittest
+from unittest.mock import patch, Mock
+from random_utils import get_random  # Adjust the import path as needed
+
+class TestRandomUtils(unittest.TestCase):
+
+    @patch("random_utils.requests.get")
+    def test_get_random_success(self, mock_get):
+        """Test if get_random returns a valid float on successful request."""
+        # Mocking a successful response
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.text = "0.57"  # Example valid response
+        mock_get.return_value = mock_response
+
+        result = get_random()
+        self.assertIsInstance(result, float)
+        self.assertEqual(result, 0.57)
+
+    @patch("random_utils.requests.get")
+    def test_get_random_timeout(self, mock_get):
+        """Test if get_random raises a RuntimeError on request timeout."""
+        mock_get.side_effect = requests.exceptions.Timeout
+        
+        with self.assertRaises(RuntimeError) as context:
+            get_random()
+        
+        self.assertIn("timed out", str(context.exception))
+
+    @patch("random_utils.requests.get")
+    def test_get_random_request_exception(self, mock_get):
+        """Test if get_random raises a RuntimeError on a generic request exception."""
+        mock_get.side_effect = requests.exceptions.RequestException("Connection error")
+        
+        with self.assertRaises(RuntimeError) as context:
+            get_random()
+        
+        self.assertIn("failed", str(context.exception))
+
+    @patch("random_utils.requests.get")
+    def test_get_random_invalid_response(self, mock_get):
+        """Test if get_random raises a ValueError on invalid response format."""
+        # Mocking an invalid response (e.g., non-numeric)
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.text = "invalid"  # Invalid response that can't be converted to float
+        mock_get.return_value = mock_response
+        
+        with self.assertRaises(ValueError) as context:
+            get_random()
+        
+        self.assertIn("Invalid response", str(context.exception))
+
+if __name__ == "__main__":
+    unittest.main()
+
+

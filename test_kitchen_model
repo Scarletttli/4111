@@ -1,0 +1,157 @@
+import unittest
+from unittest.mock import patch, MagicMock
+from kitchen_model import Meal, create_meal, clear_meals, delete_meal, get_leaderboard, get_meal_by_id, get_meal_by_name, update_meal_stats
+import sqlite3
+
+class TestKitchenModel(unittest.TestCase):
+
+    @patch('kitchen_model.get_db_connection')
+    def test_create_meal_success(self, mock_get_db_connection):
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_get_db_connection.return_value.__enter__.return_value = mock_conn
+        mock_conn.cursor.return_value = mock_cursor
+
+        create_meal('Spaghetti', 'Italian', 10.5, 'MED')
+        mock_cursor.execute.assert_called_once_with(
+            "INSERT INTO meals (meal, cuisine, price, difficulty) VALUES (?, ?, ?, ?)",
+            ('Spaghetti', 'Italian', 10.5, 'MED')
+        )
+        mock_conn.commit.assert_called_once()
+
+    @patch('kitchen_model.get_db_connection')
+    def test_create_meal_invalid_price(self, mock_get_db_connection):
+        with self.assertRaises(ValueError) as context:
+            create_meal('Spaghetti', 'Italian', -1, 'MED')
+        self.assertEqual(str(context.exception), "Invalid price: -1. Price must be a positive number.")
+
+    @patch('kitchen_model.get_db_connection')
+    def test_clear_meals(self, mock_get_db_connection):
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_get_db_connection.return_value.__enter__.return_value = mock_conn
+        mock_conn.cursor.return_value = mock_cursor
+
+        clear_meals()
+        mock_cursor.executescript.assert_called_once()
+
+    @patch('kitchen_model.get_db_connection')
+    def test_delete_meal_success(self, mock_get_db_connection):
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_get_db_connection.return_value.__enter__.return_value = mock_conn
+        mock_conn.cursor.return_value = mock_cursor
+        mock_cursor.fetchone.return_value = (False,)  # Not deleted
+
+        delete_meal(1)
+        mock_cursor.execute.assert_called_with("UPDATE meals SET deleted = TRUE WHERE id = ?", (1,))
+        mock_conn.commit.assert_called_once()
+
+    @patch('kitchen_model.get_db_connection')
+    def test_delete_meal_not_found(self, mock_get_db_connection):
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_get_db_connection.return_value.__enter__.return_value = mock_conn
+        mock_conn.cursor.return_value = mock_cursor
+        mock_cursor.fetchone.return_value = None  # Not found
+
+        with self.assertRaises(ValueError) as context:
+            delete_meal(99)
+        self.assertEqual(str(context.exception), "Meal with ID 99 not found")
+
+    @patch('kitchen_model.get_db_connection')
+    def test_get_leaderboard(self, mock_get_db_connection):
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_get_db_connection.return_value.__enter__.return_value = mock_conn
+        mock_conn.cursor.return_value = mock_cursor
+        mock_cursor.fetchall.return_value = [
+            (1, 'Spaghetti', 'Italian', 10.5, 'MED', 5, 3, 0.6),
+            (2, 'Tacos', 'Mexican', 8.0, 'LOW', 4, 2, 0.5)
+        ]
+
+        leaderboard = get_leaderboard('wins')
+        self.assertEqual(len(leaderboard), 2)
+        self.assertEqual(leaderboard[0]['meal'], 'Spaghetti')
+
+    @patch('kitchen_model.get_db_connection')
+    def test_get_meal_by_id_success(self, mock_get_db_connection):
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_get_db_connection.return_value.__enter__.return_value = mock_conn
+        mock_conn.cursor.return_value = mock_cursor
+        mock_cursor.fetchone.return_value = (1, 'Spaghetti', 'Italian', 10.5, 'MED', False)
+
+        meal = get_meal_by_id(1)
+        self.assertIsInstance(meal, Meal)
+        self.assertEqual(meal.meal, 'Spaghetti')
+
+    @patch('kitchen_model.get_db_connection')
+    def test_get_meal_by_id_not_found(self, mock_get_db_connection):
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_get_db_connection.return_value.__enter__.return_value = mock_conn
+        mock_conn.cursor.return_value = mock_cursor
+        mock_cursor.fetchone.return_value = None  # Not found
+
+        with self.assertRaises(ValueError) as context:
+            get_meal_by_id(99)
+        self.assertEqual(str(context.exception), "Meal with ID 99 not found")
+
+    @patch('kitchen_model.get_db_connection')
+    def test_get_meal_by_name_success(self, mock_get_db_connection):
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_get_db_connection.return_value.__enter__.return_value = mock_conn
+        mock_conn.cursor.return_value = mock_cursor
+        mock_cursor.fetchone.return_value = (1, 'Spaghetti', 'Italian', 10.5, 'MED', False)
+
+        meal = get_meal_by_name('Spaghetti')
+        self.assertIsInstance(meal, Meal)
+        self.assertEqual(meal.meal, 'Spaghetti')
+
+    @patch('kitchen_model.get_db_connection')
+    def test_get_meal_by_name_not_found(self, mock_get_db_connection):
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_get_db_connection.return_value.__enter__.return_value = mock_conn
+        mock_conn.cursor.return_value = mock_cursor
+        mock_cursor.fetchone.return_value = None  # Not found
+
+        with self.assertRaises(ValueError) as context:
+            get_meal_by_name('Nonexistent Meal')
+        self.assertEqual(str(context.exception), "Meal with name Nonexistent Meal not found")
+
+    @patch('kitchen_model.get_db_connection')
+    def test_update_meal_stats_win(self, mock_get_db_connection):
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_get_db_connection.return_value.__enter__.return_value = mock_conn
+        mock_conn.cursor.return_value = mock_cursor
+        mock_cursor.fetchone.return_value = (False,)  # Not deleted
+
+        update_meal_stats(1, 'win')
+        mock_cursor.execute.assert_called_with("UPDATE meals SET battles = battles + 1, wins = wins + 1 WHERE id = ?", (1,))
+        mock_conn.commit.assert_called_once()
+
+    @patch('kitchen_model.get_db_connection')
+    def test_update_meal_stats_loss(self, mock_get_db_connection):
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_get_db_connection.return_value.__enter__.return_value = mock_conn
+        mock_conn.cursor.return_value = mock_cursor
+        mock_cursor.fetchone.return_value = (False,)  # Not deleted
+
+        update_meal_stats(1, 'loss')
+        mock_cursor.execute.assert_called_with("UPDATE meals SET battles = battles + 1 WHERE id = ?", (1,))
+        mock_conn.commit.assert_called_once()
+
+    @patch('kitchen_model.get_db_connection')
+    def test_update_meal_stats_invalid_result(self, mock_get_db_connection):
+        with self.assertRaises(ValueError) as context:
+            update_meal_stats(1, 'invalid_result')
+        self.assertEqual(str(context.exception), "Invalid result: invalid_result. Expected 'win' or 'loss'.")
+
+if __name__ == '__main__':
+    unittest.main()
+

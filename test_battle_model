@@ -1,0 +1,84 @@
+import unittest
+from unittest.mock import patch, MagicMock
+from meal_max.models.kitchen_model import Meal
+from meal_max.models.battle_model import BattleModel
+
+
+class TestBattleModel(unittest.TestCase):
+
+    def setUp(self):
+        """Set up a BattleModel instance and sample meals for testing."""
+        self.battle_model = BattleModel()
+
+        # Sample meal data
+        self.meal1 = Meal(id=1, meal="Spaghetti", price=10.0, cuisine="Italian", difficulty="MED")
+        self.meal2 = Meal(id=2, meal="Tacos", price=8.0, cuisine="Mexican", difficulty="LOW")
+        self.meal3 = Meal(id=3, meal="Sushi", price=15.0, cuisine="Japanese", difficulty="HIGH")
+
+    @patch('meal_max.utils.random_utils.get_random', return_value=0.5)
+    @patch('meal_max.models.kitchen_model.update_meal_stats')
+    def test_battle_winner(self, mock_update_meal_stats, mock_get_random):
+        """Test the battle method for determining the winner correctly."""
+        self.battle_model.prep_combatant(self.meal1)
+        self.battle_model.prep_combatant(self.meal2)
+
+        winner = self.battle_model.battle()
+
+        # Assert the winner is either meal1 or meal2 based on their scores
+        self.assertIn(winner, [self.meal1.meal, self.meal2.meal])
+        mock_update_meal_stats.assert_called()
+
+    def test_battle_not_enough_combatants(self):
+        """Test if ValueError is raised when not enough combatants are present."""
+        self.battle_model.prep_combatant(self.meal1)
+
+        with self.assertRaises(ValueError) as context:
+            self.battle_model.battle()
+
+        self.assertEqual(str(context.exception), "Two combatants must be prepped for a battle.")
+
+    @patch('meal_max.models.kitchen_model.update_meal_stats')
+    def test_prep_combatant_full_list(self, mock_update_meal_stats):
+        """Test if ValueError is raised when trying to add more than two combatants."""
+        self.battle_model.prep_combatant(self.meal1)
+        self.battle_model.prep_combatant(self.meal2)
+
+        with self.assertRaises(ValueError) as context:
+            self.battle_model.prep_combatant(self.meal3)
+
+        self.assertEqual(str(context.exception), "Combatant list is full, cannot add more combatants.")
+
+    @patch('meal_max.models.kitchen_model.update_meal_stats')
+    def test_clear_combatants(self, mock_update_meal_stats):
+        """Test the clear_combatants method."""
+        self.battle_model.prep_combatant(self.meal1)
+        self.battle_model.prep_combatant(self.meal2)
+
+        self.battle_model.clear_combatants()
+
+        self.assertEqual(len(self.battle_model.combatants), 0)
+
+    @patch('meal_max.models.kitchen_model.update_meal_stats')
+    def test_get_battle_score(self, mock_update_meal_stats):
+        """Test the calculation of battle score."""
+        self.battle_model.prep_combatant(self.meal1)
+        score = self.battle_model.get_battle_score(self.meal1)
+
+        expected_score = (self.meal1.price * len(self.meal1.cuisine)) - 2  # Difficulty is MED
+        self.assertEqual(score, expected_score)
+
+    def test_get_combatants(self):
+        """Test retrieval of combatants."""
+        self.battle_model.prep_combatant(self.meal1)
+        self.battle_model.prep_combatant(self.meal2)
+
+        combatants = self.battle_model.get_combatants()
+        self.assertEqual(len(combatants), 2)
+        self.assertIn(self.meal1, combatants)
+        self.assertIn(self.meal2, combatants)
+
+if __name__ == '__main__':
+    unittest.main()
+
+
+
